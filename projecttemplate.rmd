@@ -1,0 +1,650 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+Exploratory Data Analysis of Prosper Loan Data by Andrew Olafson
+========================================================
+
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Load all packages
+
+library(ggplot2)
+library(scales)
+library(tidyverse)
+library(viridis)
+library(lubridate)
+library(GGally)
+library(ggridges)
+
+```
+
+```{r include=FALSE}
+
+# Load the Data
+pld <- read.csv("prosperLoanData.csv")
+
+```
+
+```{r warning=FALSE, include=FALSE}
+#calling names displays all of the column headers for the data frame
+names(pld)
+```
+
+>I will be exploring data from 113,937 loan records from Prosper with listing
+creation dates from 9 Nov 2005 to 10 Mar 2014. Included in this data set are
+81 variables for each loan record. We can see a summary of the data set below.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#summary statistics of the data frame. Also, displays data type of each variable
+summary(pld)
+```
+
+> Looking at the data set I will be creating a few new variables and converting some variable data types. I am going to be creating a variable which captures which quarter loans were originated as well as the year. Seperating the variables will allow me to look at data from quarters and years easier. I also noticed that all of the dates are character data types. I will be using the Lubridate library to convert these to a date type. This will allow me to create a new variable which shows the number of days from application initiation to closing date. 
+
+```{r}
+#get date range of data
+print(min(pld$ListingCreationDate))
+print(max(pld$ListingCreationDate))
+
+```
+
+```{r}
+#Create new column Year by taking substring from ListingCreationDate
+pld$Year <- substr(pld$ListingCreationDate, 0, 4)
+```
+
+```{r}
+#Create data frame of the sum of all loans for a given year
+LoanAmountByYear <- pld %>% group_by(Year) %>% summarise(.,LoanOriginalAmount = sum(LoanOriginalAmount))
+```
+
+```{r}
+#Create data frame of the average loan amount for a given year
+Avg_LoanAmountByYear <- pld %>% group_by(Year) %>% summarise(.,LoanOriginalAmount = mean(LoanOriginalAmount))
+```
+
+```{r}
+#Create data frame of the average borrower Debt to income by year
+Avg_DTIByYear <- pld %>% group_by(Year) %>% summarise(.,DebtToIncomeRatio = mean(DebtToIncomeRatio, na.rm = TRUE))
+```
+
+```{r}
+#create data frame of borrower average debt to credit by year
+Avg_DTCByYear <-pld %>% group_by(Year) %>% summarise(.,BankcardUtilization = mean(BankcardUtilization, na.rm = TRUE))
+```
+
+>Other variables that I will be focusing on are Borrower Credit Score, APR, Borrower Stated Income, Debt to Income, and Bank Card Utilization. These are all variables that are used by financial institutions to make lending decisions. 
+
+
+> In this section I will be performing univariate analysis of the data set. Univariate analysis explores each variable in a data set, separately. It looks at the range of values, as well as the central tendency of the values. It describes the pattern of response to the variable. It describes each variable on its own. Descriptive statistics describe and summarize data. Univariate descriptive statistics describe individual variables.
+
+```{r warning=FALSE}
+#bar chart of borrower average debt to income per year
+bar_avg_dti <- ggplot(Avg_DTIByYear, aes(Avg_DTIByYear$Year, Avg_DTIByYear$DebtToIncomeRatio))+
+  geom_col()
+
+bar_avg_dti
+
+#bar chart of borrower average debt to credit percent per year
+bar_avg_dtc <- ggplot(Avg_DTCByYear, aes(Avg_DTCByYear$Year, Avg_DTCByYear$BankcardUtilization))+
+  geom_col()
+
+bar_avg_dtc
+```
+>Debt to credit and debt to income are variables used by lenders to make credit decisions. It is interesting to see that debt to income was at its highest in the year 2007. This is near the financial crisis of 2008 and could be seen as an indicator of what would happen in subsequent years. Debt to credit stays fairly even throughout the years with the average being between 50% to 60%.
+
+```{r message=FALSE, warning=FALSE}
+histogram_card_utilization <- ggplot(pld, aes(pld$RevolvingCreditBalance))+
+  geom_histogram(binwidth = 250)+
+  scale_x_continuous(limits = c(0,30000))
+
+histogram_loan_amount <- ggplot(pld, aes(pld$LoanOriginalAmount))+
+  geom_histogram()
+  
+  
+bar_current_loan_status <- ggplot(pld, aes(pld$LoanStatus))+
+  geom_bar()+
+  coord_flip()
+
+bar_current_loan_status
+histogram_card_utilization
+histogram_loan_amount 
+
+median(pld$RevolvingCreditBalance, na.rm = TRUE)
+```
+> Majority of loans are either Completed or current. 
+
+>The median revolving credit balance for all borrowers is $8549.
+
+>Loan amounts spike at the round numbers, 5000, 10000, 15000, 20000, and 25000.
+
+```{r include=FALSE}
+#modify listing creation date, closed date, and loan orgination date to be date data type using lubridate library
+pld$ListingCreationDate <- ymd_hms(pld$ListingCreationDate)
+pld$ClosedDate <- ymd_hms(pld$ClosedDate)
+pld$LoanOriginationDate <- ymd_hms(pld$LoanOriginationDate)
+
+#create new variable, Days to Close, by subtracting listing cration date from origination date.
+pld$DaysToClose <- (date(pld$LoanOriginationDate) - date(pld$ListingCreationDate))
+
+#max, min, and mean of Days to close
+max(pld$DaysToClose) #maximum days to close is 1095
+min(pld$DaysToClose) #minimum days is 1 day to close
+mean(pld$DaysToClose) #mean days to close is 12.34 days
+```
+
+>I created a new column in our data frame called DaysToClose. This displays how many days from the inital credit pull to the loan origination for each borrower. The maximum days to close was 1095 days, this must be an error in the data as this time frame spans about 3 years. the minimum is 1 day and the mean is 12.34 days to close.
+
+```{r}
+#plots a histogram of the number of days to close from date of credit pull to loan origination
+ggplot(pld, aes(x = DaysToClose))+
+  geom_histogram(binwidth = 1)+
+  scale_x_continuous(limits = c(0,90))+
+  theme(panel.background = element_blank())
+```
+> Above we can see a distribution of the number of days to close across all loans in the data set. The distributuon is heavily left skewed with the majority of loans originating in less then 25 days.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#creating data frame with number of loans per year
+count_loans_by_year <- pld%>% 
+  count(Year, sort = TRUE)
+#getting average of number of loans per year (11,393.7)
+Avg_loans_per_year = sum(count_loans_by_year$n)/ length(count_loans_by_year$Year)
+Avg_loans_per_year
+
+#prints the difference between number of loans booked in 2013 and the average number of loans booked per year
+print(count_loans_by_year[count_loans_by_year$Year == '2013', 'n'] - Avg_loans_per_year)
+
+loan_by_year <- ggplot(pld, aes(x = Year))+
+  geom_histogram(stat = "count", 
+                 fill = "orange")+
+  labs(title = "Number of Loans Per Year", 
+       x = "Year", 
+       y = "Number of Loans")+
+  theme(panel.background = element_blank())+
+  geom_hline(aes(yintercept = Avg_loans_per_year,na.rm=T))+
+  geom_text(mapping = aes(y = Avg_loans_per_year,na.rm=T),
+                          x = 1,
+                          label = Avg_loans_per_year,
+                          hjust = -5,
+                          vjust = -1)
+
+loan_by_year
+
+
+```
+> In the above plot we can see the number of loan originations per year. 2013 saw a sharp rise in total loan originations at 35,413 loans, 24,019.3 more loans than the average of 11,393.7 loans per year.
+
+```{r warning=FALSE}
+#creates histogram of the range of borrower APR's for all loans booked from 2005 to 2014
+hist_borrower_apr_range <- ggplot(pld, aes(x = BorrowerAPR))+
+  geom_histogram(binwidth = 0.005,
+                 color = "blue",
+                 fill = "orange")+
+  labs(title = "Borrower APR for all Loans", 
+       x = 'Borrower APR', 
+       y = '# of loans')+
+  theme(panel.background = element_blank())+
+  scale_x_continuous(labels = percent_format())
+  
+
+hist_borrower_apr_range
+```
+> Above we see the distribution of borrower APR for all loans. We see a fairly normal distribution with a sharp spike at the number of loans at 36% APR with over 4000 loans in the data set having a borrower APR of 36%.
+
+```{r warning=FALSE}
+#creates a bar graph of number of observations by credit grade. This appears to be a Prosper assigned value and many borrowers do not have an assigned credit grade
+bar_credit_grade <- ggplot(pld, aes(x = CreditGrade))+
+  geom_bar(fill = 'orange')+
+  labs(title = 'Borrower Credit Grade for all Loans', 
+       x = 'Borrower Credit Grade', 
+       y = '# of Loans')+
+  theme(panel.background = element_blank())+
+  geom_text(aes(label = ..count..), 
+            stat = "count", 
+            vjust = -.5, 
+            colour = "black")+
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+bar_credit_grade
+```
+> I have created a bar chart of the distribution of credit grades. These are a letter grade given to borrowers by Prosper, a vast moajority of our borrowers did not get a credit grade assigned from Prosper. For those that did, the majority fall in the C and D grades.
+
+```{r warning=FALSE}
+#creates a density graph of all borrowers DTI with a vertical line at the median DTI of 22%
+density_debt_to_income <- ggplot(pld, aes(x = DebtToIncomeRatio))+
+  geom_density(color = 'orange',
+               fill = 'orange')+
+  coord_cartesian(xlim = c(0,1))+
+  geom_vline(aes(xintercept = median(DebtToIncomeRatio,na.rm=T)))+
+  geom_text(mapping = aes(x = median(DebtToIncomeRatio,na.rm=T),
+                          y = 0,
+                          label = median(DebtToIncomeRatio,na.rm=T),
+                          hjust = -0.1,
+                          vjust = -22))+
+  labs(title = "Borrower DTI for all Loans", 
+       x = 'Borrower DTI', 
+       y = '# of loans')+
+  theme(panel.background = element_blank())
+ 
+density_debt_to_income
+```
+> Above we have a density graph showing the distribution of borrowers debt to income percentage. The median debt to income for all borrowers is at 22%.
+
+```{r}
+#creates a box plot of bank card utilization percent. We first remove the outliers from the data set and create our box plot off the resulting data frame
+card_outliers <- boxplot(pld$BankcardUtilization, plot = FALSE)$out 
+
+pld_clean <- pld[-which(pld$BankcardUtilization %in% card_outliers),]
+
+quantile(pld_clean$BankcardUtilization, na.rm = TRUE)
+
+box_CardUtilization <- ggplot(pld_clean, aes(x = BankcardUtilization))+
+  geom_boxplot()+
+  scale_x_continuous(labels = percent_format(),
+                     limits = c(0,1))
+
+box_CardUtilization
+```
+>  Bank card utilization for all borrowers. First quartile to 3rd quartile is 31% to 84% namk card utilization rate. 
+
+```{r include=FALSE}
+#Below we look at all of the outliers in the Stated Monthly Income values. 5676 of our loans have customer stated income as an outlier. We are going to assign these to a vector in order tt present the data without these values included.
+outliers <- boxplot(pld$StatedMonthlyIncome, plot = FALSE)$out 
+
+#we then match these outliers with the loans in the data set
+pld[which(pld$StatedMonthlyIncome %in% outliers),]
+
+pld_clean <- pld[-which(pld$StatedMonthlyIncome %in% outliers),]
+mean_stated_inc <- mean(pld_clean$StatedMonthlyIncome)
+
+quantile(pld_clean$StatedMonthlyIncome, na.rm = TRUE)
+```
+
+```{r include=FALSE}
+#below I converted monthly to yearly income, remove any outliers, and create a box plot on the resulting data set
+yearly_income <- pld$StatedMonthlyIncome * 12
+
+pld['StatedYearlyIncome'] <- yearly_income
+
+outliers <- boxplot(pld$StatedYearlyIncome, plot = FALSE)$out 
+
+pld[which(pld$StatedYearlyIncome %in% outliers),]
+
+pld_clean <- pld[-which(pld$StatedYearlyIncome %in% outliers),]
+
+quantile(pld$StatedYearlyIncome, na.rm = TRUE)
+```
+
+```{r}
+box_stated_yearly_income <- ggplot(pld_clean, aes(x = StatedYearlyIncome))+
+  geom_boxplot(color = 'black', fill = 'orange')+
+  labs(title = 'Borrower Stated Yearly Income', x = "Yearly Income in $'s")+
+   theme(axis.text.y = element_blank(),
+         axis.ticks.y = element_blank(),
+         panel.background = element_blank())+
+  scale_x_continuous(labels = dollar_format())
+
+box_stated_income <- ggplot(pld_clean, aes(x = StatedMonthlyIncome))+
+  geom_boxplot(color = 'black', fill = 'orange')+
+  labs(title = 'Borrower Stated Monthly Income', x = "Monthly Income in $'s")+
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        panel.background = element_blank())+
+  scale_x_continuous(labels = dollar_format())
+
+box_stated_income
+
+box_stated_yearly_income
+```
+>bo plots of monthly and yearly income. The box plots are identical in appearance but gives two different representations of the same information. 50% of our borrowers have a yearly income of $56,000 ,approximately $4600 a month, or less.
+
+```{r warning=FALSE}
+#bar chart of borrowers by income range
+ggplot(data = pld, aes(x= IncomeRange))+
+  geom_bar(stat="count", 
+           fill="orange")+
+  theme_minimal()+
+  scale_x_discrete(limits=c('$0','$1-24,999','$25,000-49,999', '$50,000-74,999', '$75,000-99,999', '$100,000+', 'Not employed'))
+```
+> Borrower income range in a bar chart. Here we can see the majority of our borrowers fall in the $50,000 - 74,999 bin or less.
+
+```{r}
+#create a loan origination quarter variable. Since we have a Year variable we are now able to look at quarters and years seperately
+pld$LoanOriginationQuarter <- substr(pld$LoanOriginationQuarter, 0, 2)
+
+bar_loan_quarter <- ggplot(pld,aes(x = LoanOriginationQuarter))+
+  geom_bar(aes(fill = LoanOriginationQuarter))+
+  scale_x_discrete(labels = scales::wrap_format(0))+
+  labs(title = "Number of Loans Originated by Quarter", 
+       x = "Quarter", y = "Number of Loans")+
+  theme(panel.background = element_blank())+
+  geom_text(aes(label = ..count..), 
+            stat = "count", 
+            vjust = -.5, 
+            colour = "black")
+
+bar_loan_quarter                         
+```
+>Q4 has the most number of loan originations across all years. 31,386 loans originated in Q4, Q1 is next highest with 29,678, followed by Q3 with 27,967, and finally Q2 sees the least amount at 24,906.
+
+```{r warning=FALSE}
+#bar chart displaying the number of borrowers across the credit score range
+bar_creditscore <- ggplot(pld, aes(pld$CreditScoreRangeUpper))+
+  geom_bar()+
+  scale_x_continuous(limits = c(450,850))
+
+bar_creditscore
+
+quantile(pld$CreditScoreRangeUpper, na.rm = TRUE)
+```
+> our borrowers median upper credit score is 699.
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+> this dataset includes data from 113,937 loan records from Prosper with listing
+creation dates from 9 Nov 2005 to 10 Mar 2014. Included in this data set are
+81 variables for each loan record
+
+### What is/are the main feature(s) of interest in your dataset?
+> main features of interest are borrower credit score, borrower APR, and number of days to close.
+
+### What other features in the dataset do you think will help support your \
+investigation into your feature(s) of interest
+
+>other features that will help support further investigation are, borrower debt to income, borrower bank card utilization, investors, and average investment from investors.
+
+### Did you create any new variables from existing variables in the dataset?
+
+> I created the days to close variable by converting credit pull date and loan orgination date from cahracter data types to date types. I then got the difference of the two dates to provide how many days it took from credit pull to loan origination.
+
+### Of the features you investigated, were there any unusual distributions? \
+Did you perform any operations on the data to tidy, adjust, or change the form \
+of the data? If so, why did you do this?
+
+> When looking at borrowers credit score, there were values that were below or above what a credit score range can be (450 to 850). I modified the axis scales to only include data within this range.
+
+# Bivariate Plots Section
+
+```{r echo=FALSE, warning=FALSE}
+#plot of Prosper score to Borrower APR B
+PosperScore_vs_apr <- ggplot(pld, aes(x= ProsperScore, y = BorrowerAPR))+
+  geom_point(position = 'jitter', 
+             alpha = 1/25)
+
+PosperScore_vs_apr 
+
+model1 = lm(formula = ProsperScore ~ BorrowerAPR, data = pld)
+summary(model1)
+```
+> As a borrowers assigned Prosper score increases the borrowers APR decreases.
+> R squared value of .4466
+
+```{r}
+#plot of credit score to borrower APR B
+credit_vs_apr <- ggplot(pld, aes(x= CreditScoreRangeUpper, y = BorrowerAPR))+
+  geom_point(position = 'jitter', 
+             alpha = 1/25)+
+  scale_x_continuous(limits = c(450, 850), 
+                     breaks = c(450,500,550,600,650,700,750,800,850))
+
+credit_vs_apr
+
+model = lm(formula = CreditScoreRangeUpper ~ BorrowerAPR, data = pld)
+summary(model)
+```
+> Just as with Prosper score, as a borrowers credit score increases so to does a borrowers APR. Though, this has a weaker correlation on APR than Prosper score with an R squared value of .1846
+
+```{r warning=FALSE}
+credit_vs_DaysToClose <- ggplot(pld, aes(pld$DaysToClose, pld$CreditScoreRangeUpper))+
+  geom_point(position = 'jitter',
+             alpha = 1/25)+
+  scale_x_continuous(limits = c(0, 90))+
+  scale_y_continuous(limits = c(450, 850), 
+                     breaks = c(450,500,550,600,650,700,750,800,850))
+
+credit_vs_DaysToClose
+```
+> I expected that a higher a borrowers credit score the faster the loan would originate. Which this plot does show but, it also shows a lower score also has fewer days to close. When I thought about this, it is likely due to the peer to peer platform that is Prosper. This distribution is likely due to investor appetites. They are likely mroe willing to invest in the safe bet (higher credit score) and higher returns (lower credit score). A higher credit score means a borrowers APR is lower which means less return to the investor where as lower credit score means a higher APR and more return to the investor.
+
+```{r warning=FALSE}
+plot_income_bankcard <- ggplot(pld, aes(pld$StatedMonthlyIncome,pld$BankcardUtilization))+
+  geom_point(position = 'jitter', alpha = 1/10)+
+  scale_x_continuous(limits = c(0,10000))+
+  scale_y_continuous(limits = c(0,1))
+
+plot_income_bankcard
+
+```
+>Across all incomes bank card utilization is high. We see a higher concentration of the distribution in the income less than $5000. As you may recall from earlier our average monthly income was around $4600.
+
+```{r warning=FALSE}
+ridges <- ggplot(pld, aes(x = BorrowerAPR, y = LoanStatus, fill = stat(x))) +
+  geom_density_ridges_gradient(scale = 2,rel_min_height = 0.01) +
+  scale_fill_viridis_c(option = "D",limits = c(.04,.45), labels = percent_format())+
+  theme_ridges(grid = FALSE, center_axis_labels = TRUE)+
+   theme(legend.position = 'none')
+
+ridges
+```
+> above is a ridge plot of current loan status based on a borrowers APR. We can see that loans with a lower APR are more likely to be in good standing where those with higher APRs are more likely to be in a bad standing,
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. How did the feature(s) of interest vary with other features in \
+the dataset?
+
+> A main focus was borrower APR and credit score in this section. What we can see is that Prosper score has a higher weight on what a borrowers APR will be than a credit score does. Also, although credit score does impact how fast you can anticipate a loan to close, those with a low credit score saw the same benefit. 
+
+### Did you observe any interesting relationships between the other features \
+> It is interesting that borrowers with low credit scores saw the same benefit as borrowers with high credit scores in relation to how quickly loans would originate. THis is likely due to the peer 2 peer nature of Prosper. Investors seem to be more drawn to the safe bets(high credit score) and high returns(low credit score).
+
+### What was the strongest relationship you found?
+
+> The strongest relationship I observed in my analysis was .446 between Prosper score and credit score.
+
+# Multivariate Plots Section
+
+
+```{r echo=FALSE, warning=FALSE}
+plot_income_bankcardutilization <- ggplot(pld, aes(pld$StatedMonthlyIncome,pld$BankcardUtilization))+
+  geom_point(position = 'jitter', alpha = 1/25, aes(color = pld$CreditScoreRangeUpper))+
+  scale_x_continuous(limits = c(0,10000))+
+  scale_y_continuous(limits = c(0,1))+
+  scale_color_viridis(option = 'D', limits = c(650,850))
+
+plot_income_bankcardutilization
+```
+> When we apply a color gradient of the borrowers credit score to our previous plot that looked at bank card utilization and monthly income we see a new insight. As income increases nad card utilization decreases, credit score increases.
+
+```{r warning=FALSE}
+plot_cardutilization_creditscore <- ggplot(pld,aes(x= BankcardUtilization, y = pld$CreditScoreRangeUpper))+
+  geom_point(position = 'jitter',alpha = 1/10, aes(color = pld$ProsperScore), na.rm = T)+
+  scale_y_continuous(limits = c(550,850))+
+  scale_x_continuous(limits = c(0,1))+
+  scale_color_viridis(option = "D", limits = c(0,10))+
+  geom_smooth(method = 'loess', se = FALSE)
+
+plot_cardutilization_creditscore 
+```
+> As bank card utilization decreases and credit score increaes we see an increase in Prosper score.
+
+```{r warning=FALSE}
+#plot of prosper score to borrower APR with a gradient of borrower credit score M
+PosperScore_vs_apr_wCreditScore <-ggplot(pld, aes(x= ProsperScore, y = BorrowerAPR))+
+  geom_point(position = 'jitter', 
+             alpha = 1/10,
+             aes(color = CreditScoreRangeUpper))+
+  scale_color_viridis(option = "D", limits = c(500,850))+
+  theme(panel.background = element_rect(fill = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  geom_smooth(method = 'loess',se = FALSE)
+
+PosperScore_vs_apr_wCreditScore
+```
+> When we overlay credit score onto our previous plot of prosper score vs borrower APR, we can see that credit score alone is not a strong indicator to what a borrowers Prosper score or APR will be.
+
+```{r warning=FALSE}
+#plot of borrower credit score to borrower APR with gradient of prosper score. This plot shows that a higher Prosper score is a greater deciding factor for the borrowers APR than a borrowers credit score. There is a fairly even distribution of credit scores across the plot. When we plot a mean line in the graph we see an almost linear line where the higher a Prosper score, the lower your APRwill be. This tells us a higher prosper score is a bigger determining factor than ones credit score. M
+credit_vs_apr_wProsperScore <- ggplot(pld, aes(x= CreditScoreRangeUpper, y = BorrowerAPR))+
+  geom_point(position = 'jitter', 
+             alpha = 1/10,
+             aes(color = ProsperScore))+
+  scale_color_viridis(option = "D")+
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0,.45))+
+  scale_x_continuous(limits = c(450, 850), 
+                     breaks = c(450,500,550,600,650,700,750,800,850))+
+  theme(panel.background = element_rect(fill = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  labs( title = "Borrower APR based on Credit Score",subtitle = 'Prosper Score Gradient', x = 'Credit Score', y = 'APR')+
+  geom_smooth(method = 'loess', se = FALSE)
+
+credit_vs_apr_wProsperScore
+```
+> We can see that high prosper scores are dispursed from credit scores ranging from 650 to 850 and those with higher prosper scores and higher credit score see the lowest borrower APR.
+
+```{r}
+#plot of borrower credit score to number of days to close with borrower APR gradient.
+
+credit_vs_DaysToClose_wAPR <- ggplot(pld, aes(x= DaysToClose , y = CreditScoreRangeUpper))+
+  geom_point(position = 'jitter', 
+             alpha = 1/10,
+             aes(color = BorrowerAPR))+
+  scale_color_viridis(option = "D")+
+  scale_x_continuous(limits = c(0, 90))+
+  scale_y_continuous(limits = c(450, 850), 
+                     breaks = c(450,500,550,600,650,700,750,800,850))+
+  theme(panel.background = element_rect(fill = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  labs( title = "Days to Close by Credit Score")
+
+credit_vs_DaysToClose_wAPR
+```
+
+> My expectation was that the higher a borrowers credit score, the lower the days to close would be. Although a better credit score does get you a faster loan closing than those in the middle range of possible credit scores, it is actually the borrowers with lower credit scores which see faster loan closings. This seems counter intuitive to normal lending situations however, we must remember that Prosper works off of a crowd funding model. Where an investor chooses which loans to fund. With this in mind, it makes sense that loans with higher APR's close faster, investors are willing to take a risk on the borrowers for the hope of a greater return on their investment.
+
+```{r warning=FALSE}
+pld['avg_investment'] <- pld$LoanOriginalAmount / pld$Investors
+
+LoanAmount_Investors <- ggplot(pld, aes(avg_investment, Investors))+
+  geom_point(position = 'jitter',
+             alpha = 1/25,
+             aes(color = pld$LoanOriginalAmount), na.rm = T)+
+  scale_x_continuous(limits = c(0, 500))+
+  scale_y_continuous(limits = c(0,1000))+
+  scale_color_viridis(option = 'D', limits = c(0,max(pld$LoanOriginalAmount)))
+
+LoanAmount_Investors
+```
+> we divided the original loan amount by the number of investors to find an average investment per investor for each loan. The majority of investors are investing in amounts of less than $100 and thus as the loan amount increases, the number of investors needed also increases.
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. Were there features that strengthened each other in terms of \
+looking at your feature(s) of interest?
+
+> Credit score, APR, and Prosper score strengthen each other. We can see that credit score alone does not guarantee a low borrower APR, a combination of a high credit score and high Prosper score yields the best borrower APR.
+
+### Were there any interesting or surprising interactions between features?
+> The most interesting interaction still is that loans that have borrowers with low credit scores see a short origination time jsut as those borrowers with high credit scores.
+
+------
+
+# Final Plots and Summary
+
+
+
+### Plot One
+```{r echo=FALSE, warning=FALSE}
+
+level_order <- c('Completed', 'Current', 'FinalPaymentInProgress', 'Cancelled','Chargedoff','Defaulted','Past Due (1-15 days)', 'Past Due (16-30 days)', 'Past Due (31-60 days)', 'Past Due (61-90 days)', 'Past Due (91-120 days)', 'Past Due (>120 days)')
+
+ridges_refined <- ggplot(pld, aes(x = BorrowerAPR, 
+                                  y = factor(pld$LoanStatus, level = level_order), 
+                                  fill = stat(x))) +
+  geom_density_ridges_gradient(scale = 2,
+                               rel_min_height = 0.01) +
+  scale_fill_viridis_c(option = "D",
+                       limits = c(.04,.45))+
+  scale_x_continuous(labels = percent_format())+
+  labs(title = 'Current Loan Status by Loan APR',
+       y = 'Loan Status',
+       x = 'Borrower APR')+
+  theme_ridges(grid = FALSE, 
+               center_axis_labels = TRUE,
+               )+
+   theme(legend.position = 'none')
+
+ridges_refined
+
+
+```
+
+> The above plot shows the relation between current loan status and a borrowers APR. We see a higher distribution of loans in a bad standing as the loan APR increases.
+
+
+### Plot Two
+```{r echo=FALSE, warning=FALSE}
+credit_vs_DaysToClose_wAPR_refined <- ggplot(pld, aes(x= DaysToClose , y = CreditScoreRangeUpper))+
+  geom_point(position = 'jitter', 
+             alpha = 1/10,
+             aes(color = BorrowerAPR))+
+  scale_color_viridis(option = "D", labels = percent_format())+
+  scale_x_continuous(limits = c(0, 90))+
+  scale_y_continuous(limits = c(450, 850), 
+                     breaks = c(450,500,550,600,650,700,750,800,850))+
+  theme(panel.background = element_rect(fill = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  labs( title = "Days to Close by Credit Score", 
+        x = 'Days To Close',
+        y = 'Credit Score',
+        subtitle = 'APR Color Gradient')
+
+credit_vs_DaysToClose_wAPR_refined
+```
+
+> Here we see something a bit counter intuitive to lending. Borrowers with a low credit score see a closing time similar to those with the best credit scores. This is likely due to the peer 2 peer lending model that Prosper is built off of. Investors seem more likely to invest in a sure thing (high credit score) and a better return (low credit score).
+
+
+### Plot Three
+```{r echo=FALSE, Plot_Three}
+daystoclose_refined <- ggplot(pld, aes(x = DaysToClose))+
+  geom_histogram(binwidth = 1,
+                 fill = 'orange',
+                 color = 'black')+
+  scale_x_continuous(limits = c(0,90))+
+  theme(panel.background = element_blank())+
+  labs(title = 'Count of Loans by Number of Days to Close',
+         x = 'Days to Close',
+         y = 'Number of Loans')
+
+daystoclose_refined
+
+median(pld$DaysToClose)
+```
+
+> Above we can see the distribution of loans by the number of days it took from initial credit pull to loan origination. The median time it took for this to occur was 9 days.
+
+------
+
+# Reflection
+
+> I initially chose this data set due to its relation to my current profession in the financial industry even though this data set did come with the warning that it would take 15-30 hours to complete the project with. Much of this time was spent in learning how to convert data types in the data set. Many of them, especially dates, were character data types which did not allow for mathematical equations to be performed on them. Once converted this allowed me to further explore questions such as how many days it took for loans to close from the initial credit pull date.
+
+> This yielded one of my most interesting finds, that at first, had me a little confused until I remembered that Prosper uses a peer 2 peer lending model. At first I did not understand why borrowers with lower credit scores saw a closing timeline similar to those with high credit scores, with borrowers in the middle seeing the longest closing times. I then remembered that these loans are funded by investors and this correlation speaks to the appetite of those investors. They are looking more for low risk and low reward or high risk high reward.
+
+> Learning of and implementing the Viridis library was the most enjoyable part of the project for me. Seeing how adding a new color variable to our plots transformed what was being communicated was eye opening and allowed me to explore the data set in ways I previously had not considered. It also brought plots alive that seemed to not show much of anything before. A great exmaple of this is the card utilization vs income plot. Once a color variable is added you can start to see that as income increases card utilization tends to decrease which results in a higher credit score.
+
+> Some limitations of my project is that I did not delve to deep into statistical models. This is an area which I can continue to grow this project in the future to garnish furhter insights into the data set.

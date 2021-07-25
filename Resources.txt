@@ -1,0 +1,5 @@
+https://cran.r-project.org/web/packages/viridis/index.html
+
+https://cran.r-project.org/web/packages/ggridges/vignettes/introduction.html
+
+https://www.rstudio.com/resources/cheatsheets/
